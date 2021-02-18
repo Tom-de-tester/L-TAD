@@ -1,0 +1,81 @@
+import com.eviware.soapui.impl.wsdl.actions.testcase.CloneTestCaseAction
+import java.io.File;
+import java.io.FileInputStream;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+
+groovyutils = new com.eviware.soapui.support.GroovyUtils(context)
+
+def workspace = runner.testSuite.project.getWorkspace();
+
+String concept_testcase = "WijzigenDTD"
+
+if(workspace != null){
+
+	def testCases = runner.testSuite.getTestCaseList()
+	testCases.each {
+		if (it.name != concept_testcase) {
+			runner.testSuite.removeTestCase(it)
+		}	
+	}
+		
+	def testcase_original = runner.testSuite.getTestCaseByName(concept_testcase)
+	
+	
+	String project_path = groovyutils.projectPath
+	
+	def folder = new File(project_path)
+	
+	if( !folder.exists() ) {
+		project_path = context.expand ('${#Project#project_path}')
+	} 
+	
+	FileInputStream fis = new FileInputStream(new File(project_path + "/../" + testcase_original.getPropertyValue("datasheet_file")))
+	
+	Workbook wb = WorkbookFactory.create(fis)
+	
+	Sheet sh = wb.getSheet("datasheet")
+	
+	Integer execute_column = 0
+	Integer id_column = 0
+	Integer name_column = 0
+	
+	for (i = 0; i <= sh.getRow(0).getPhysicalNumberOfCells(); i++) {
+		if (sh.getRow(0).getCell(i).toString().toLowerCase() == "uitvoeren") {
+			execute_column = i	
+		}
+	
+		if (sh.getRow(0).getCell(i).toString().toLowerCase() == "testcase") {
+			id_column = i	
+		}
+	
+		if (sh.getRow(0).getCell(i).toString().toLowerCase() == "scenario") {
+			name_column = i	
+		}
+	}
+	
+	for (i = 1; i <= sh.getLastRowNum(); i++) {
+			testcase_new = runner.testSuite.cloneTestCase(testcase_original,sh.getRow(i).getCell(id_column).toString() + " - " + sh.getRow(i).getCell(name_column).toString())
+			
+			if (sh.getRow(i).getCell(execute_column).toString().toLowerCase() == "true") {
+				testcase_new.disabled = false
+			}
+	
+			def tc_file_properties = testcase_new.getTestStepByName("Properties - testdata")
+	
+			//delete all properties
+			for( prop in tc_file_properties.properties) {
+	   			tc_file_properties.removeProperty( prop.value.name )
+	   		}
+	
+			Integer current_cell = 0
+	
+			while (sh.getRow(0).getCell(current_cell) != null) {
+				if (sh.getRow(i).getCell(current_cell).toString() != "null" && sh.getRow(i).getCell(current_cell).toString() != "") {		
+					tc_file_properties.setPropertyValue(sh.getRow(0).getCell(current_cell).toString(),sh.getRow(i).getCell(current_cell).toString())
+				} 
+				current_cell++
+			}
+	}
+}
